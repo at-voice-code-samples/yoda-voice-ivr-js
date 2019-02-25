@@ -1,0 +1,42 @@
+{
+  "name": "yoda-voice-ivr",
+  "version": "1.0.0",
+  "description": "IVR Voice application",
+  "main": "src/app.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "start": "yarn src/app.js",
+    "dev" : "nodemon src/app.js",
+    "test": "testcafe chrome test/test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/at-voice-code-samples/yoda-voice-ivr-js.git"
+  },
+  "keywords": [
+    "VoIP",
+    "Africa's Talking",
+    "IVR",
+    "Digits Collection"
+  ],
+  "author": "@TheBeachmaster",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/at-voice-code-samples/yoda-voice-ivr-js/issues"
+  },
+  "homepage": "https://github.com/at-voice-code-samples/yoda-voice-ivr-js#readme",
+  "dependencies": {
+    "body-parser": "^1.18.3",
+    "express": "^4.16.4",
+    "redis": "^2.8.0",
+    "xmlbuilder": "^11.0.0"
+  },
+  "devDependencies": {
+    "morgan": "^1.9.1",
+    "nodemon": "^1.18.10",
+    "snyk": "^1.134.2",
+    "testcafe": "^1.0.1"
+  }
+}
