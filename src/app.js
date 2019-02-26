@@ -9,15 +9,22 @@ client.on("error", (err) => {
     console.error("Redis Error: " + err);
 });
 
+let user = {};
+user.sessionId = "ABABABABA4082048";
+user.phoneNumber = "+254724587654";
+user.file = "http://something.something";
 
-client.set("file1", "https://www.myfile.link.com/file.mp3");
-client.set("file2", "https://www.myfile.link.com/file2.mp3");
+client.hmset("user", user);
+
+let user2 = {};
+user2.sessionId = "ABABABABA4082048";
+user2.phoneNumber = "+254724587654";
+user2.file = "http://something.something"
 
 
-client.get("file2", function(err, reply) {
-    // reply is null when the key is missing
-    console.log(reply);
-});
+// client.hgetall('user', function(err, object) {
+//     console.log(object['file']);
+// });
 
 const app = express();
 app.use(bodyParser.urlencoded({extended:true}));
@@ -25,6 +32,23 @@ app.use(bodyParser.urlencoded({extended:true}));
 const appPort = 3088;
 
 let callAction = "";
+
+let getUserDetails = (key, value) => {
+    client.hgetall(key, (err, object) => { 
+       return object[`${value}`];
+    });
+};
+
+let setUserDetails = (key, obj) => {
+    let _key = key.toString();
+    return client.hmset(_key, obj);
+};
+
+setUserDetails("user2", user2);
+
+let uD = getUserDetails("user2", "file");
+
+console.info(uD);
 
 /**
  * Intro prompt
@@ -243,6 +267,7 @@ app.post('/voice/service', (req, res) =>{
 });
 
 app.post('/voice/menu', (req, res) =>{
+    client.get()
     callAction = introPrompt;
     res.send(actionsMenuPhraseXml);
 });
