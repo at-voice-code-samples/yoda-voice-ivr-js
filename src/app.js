@@ -2,6 +2,22 @@ const express       = require('express');
 const xmlBuilder    = require('xmlbuilder');
 const redis         = require('redis');
 const bodyParser    = require('body-parser');
+const {promisify}   = require('util');
+
+const client    = redis.createClient();
+client.on("error", (err) => {
+    console.error("Redis Error: " + err);
+});
+
+
+client.set("file1", "https://www.myfile.link.com/file.mp3");
+client.set("file2", "https://www.myfile.link.com/file2.mp3");
+
+
+client.get("file2", function(err, reply) {
+    // reply is null when the key is missing
+    console.log(reply);
+});
 
 const app = express();
 app.use(bodyParser.urlencoded({extended:true}));
@@ -55,6 +71,15 @@ const introPrompt = {
 
 const introPromptXmlResponse = xmlBuilder.create(introPrompt, {encoding : 'utf-8'}).end({pretty:true});
 
+/**
+ * Exit Response
+ * 
+ * <Response>
+ * 
+ *      <Say voice="woman">Bye bye for now!</Say>
+ * 
+ * </Response>
+ */
 const exitPhrase = {
     Response : {
         Say : {
@@ -66,6 +91,21 @@ const exitPhrase = {
 
 const exitPhraseXml = xmlBuilder.create(exitPhrase, {encoding : 'utf-8'}).end({pretty:true});
 
+/**
+ * Record Phrase
+ * 
+ * <Response>
+ *
+ *      <GetDigits numDigits="1" finishOnKey="#" timeout="15" callbackUrl="https://something.something">
+ * 
+ *           <Say voice="woman">Welcome to Voice Memo. Press 1 followed by the pound sign. Press 2 followed by the pound sign to exit.</Say>
+ * 
+ *      </GetDigits>
+ * 
+ *      <Say voice="woman">Sorry we did not get that</Say>
+ * 
+ * </Response>
+ */
 
 const recordPhrase = {
     Response : {
@@ -85,6 +125,20 @@ const recordPhrase = {
 
 const recordPhraseXml = xmlBuilder.create(recordPhrase, {encoding : 'utf-8'}).end({pretty:true});
 
+
+/**
+ * Play Prevoius Recording Response
+ * 
+ * <Response>
+ * 
+ *      <Say voice="woman">Playing your last recored file</Say>
+ * 
+ *      <Play url="https://something.something"/>
+ * 
+ * </Response>
+ * 
+ */
+
 const playPreviousRecording = {
     Response : {
         Say : {
@@ -99,6 +153,17 @@ const playPreviousRecording = {
 
 const playPreviousRecordingXml = xmlBuilder.create(playPreviousRecording, {encoding : 'utf-8'}).end({pretty:true});
 
+/**
+ * Play Previous Recording
+ * 
+ * <Response>
+ * 
+ *      <Say voice="woman">You have no prevous file. Playing random file</Say>
+ * 
+ *      <Play url="https://something.something"/>  
+ * 
+ * </Response>
+ */
 const playPreviousRecordingNotFoundPhrase = {
     Response : {
         Say : {
@@ -113,6 +178,18 @@ const playPreviousRecordingNotFoundPhrase = {
 
 const playPreviousRecordingNotFoundPhraseXml = xmlBuilder.create(playPreviousRecordingNotFoundPhrase, {encoding : 'utf-8'}).end({pretty:true});
 
+
+/**
+ * Play Random File
+ * 
+ * <Response>
+ *  
+ *      <Say voice="woman">Playing your random file of the day</Say>
+ * 
+ *      <Play url="https://something.something"/>
+ * 
+ * </Response>
+ */
 const playRandomFilePhrase = {
     Response : {
         Say : {
@@ -127,15 +204,47 @@ const playRandomFilePhrase = {
 
 const playRandomFilePhraseXml = xmlBuilder.create(playRandomFilePhrase, {encoding : 'utf-8'}).end({pretty:true});
 
+/**
+ * Action Menus prompt
+ * <Response>
+ * 
+ *      <GetDigits numDigits="1" finishOnKey="#" timeout="15" callbackUrl="https://something.something">
+ *  
+ *          <Say voice="woman">Press 1 followed by the pound sign to record a message.Press 2 followed by the pound sign to listen to your last recording. Press 3 followed by the pound sign to play a random file. Press 4 followed by the pound sign to exit.</Say>
+ *      
+ *      </GetDigits>
+ *  
+ * </Response>
+ */
+const actionsMenuPhrase = {
+    Response : {
+        GetDigits : {
+            '@numDigits' : '1',
+            '@finishOnKey' : '#',
+            '@timeout' : '15',
+            '@callbackUrl' : 'https://something.something',
+            Say : {
+                '@voice' : 'woman',
+                '#text' : 'Press 1 followed by the pound sign to record a message.Press 2 followed by the pound sign to listen to your last recording. Press 3 followed by the pound sign to play a random file. Press 4 followed by the pound sign to exit.'
+            }
+        }
+    }
+};
+
+const actionsMenuPhraseXml = xmlBuilder.create(actionsMenuPhrase, {encoding : 'utf-8'}).end({pretty:true});
+
 app.get('/', (req, res) =>{
 res.send('It lives!');
 });
 
-//console.info(introPrompt);
-
 app.post('/voice/service', (req, res) =>{
     callAction = introPrompt;
     res.send(introPromptXmlResponse);
+});
+
+app.post('/voice/menu', (req, res) =>{
+    callAction = introPrompt;
+    res.send(actionsMenuPhraseXml);
 });
 
 app.listen(process.env.PORT || appPort, () => {
