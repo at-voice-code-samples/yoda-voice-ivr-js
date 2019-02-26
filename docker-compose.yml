@@ -1,0 +1,19 @@
+version: '2.1'
+
+services:
+  yoda-voice-ivr-js:
+    image: yoda-voice-ivr-js
+    build: .
+    environment:
+      NODE_ENV: production
+      REDIS_URL: redis://cache
+    ports:
+      - 3088:3088
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:5.0.3-alpine
+    container_name: redisdb
+    ports:
+      - 6379:6379

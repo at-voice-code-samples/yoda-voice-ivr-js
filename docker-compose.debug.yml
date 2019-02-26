@@ -1,0 +1,13 @@
+version: '2.1'
+
+services:
+  yoda-voice-ivr-js:
+    image: yoda-voice-ivr-js
+    build: .
+    environment:
+      NODE_ENV: development
+    ports:
+      - 3088:3088
+      - 9229:9229
+    ## set your startup file here
+    command: node --inspect index.js
