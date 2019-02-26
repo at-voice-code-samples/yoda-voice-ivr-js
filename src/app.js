@@ -31,7 +31,6 @@ app.use(bodyParser.urlencoded({extended:true}));
 
 const appPort = 3088;
 
-let callAction = "";
 
 let getUserDetails = (key, value) => {
     client.hgetall(key, (err, object) => { 
@@ -46,9 +45,6 @@ let setUserDetails = (key, obj) => {
 
 setUserDetails("user2", user2);
 
-let uD = getUserDetails("user2", "file");
-
-console.info(uD);
 
 /**
  * Intro prompt
@@ -257,19 +253,35 @@ const actionsMenuPhrase = {
 
 const actionsMenuPhraseXml = xmlBuilder.create(actionsMenuPhrase, {encoding : 'utf-8'}).end({pretty:true});
 
+let callAction = "";
+
 app.get('/', (req, res) =>{
 res.send('It lives!');
 });
 
+let subscriber = {};
+subscriber.phoneNumber ="";
+subscriber.sessionId = "";
+subscriber.level = 0;
+subscriber.voiceNote = "";
+subscriber.lastInput = "";
+
 app.post('/voice/service', (req, res) =>{
-    callAction = introPrompt;
-    res.send(introPromptXmlResponse);
+        callAction = introPromptXmlResponse;
+        res.send(callAction);
+        subscriber.phoneNumber = req.body.callerNumber;
+        subscriber.sessionId = req.body.sessionId;
+        subscriber.level = 1;
+        setUserDetails("subscriber", subscriber);
+        console.info(client.hmget("subscriber", "phoneNumber"));
+        // client.hgetall("subscriber", (err, object) => { 
+        //     console.info(object['phoneNumber']);
+        //  });
 });
 
 app.post('/voice/menu', (req, res) =>{
-    client.get()
-    callAction = introPrompt;
-    res.send(actionsMenuPhraseXml);
+    callAction = actionsMenuPhraseXml;
+    res.send(callAction);
 });
 
 app.listen(process.env.PORT || appPort, () => {
