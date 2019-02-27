@@ -4,22 +4,22 @@ const redis         = require('redis');
 const bodyParser    = require('body-parser');
 const {promisify}   = require('util');
 
-const client    = redis.createClient();
+let client    = redis.createClient();
 client.on("error", (err) => {
     console.error("Redis Error: " + err);
 });
 
-let user = {};
-user.sessionId = "ABABABABA4082048";
-user.phoneNumber = "+254724587654";
-user.file = "http://something.something";
+// let user = {};
+// user.sessionId = "ABABABABA4082048";
+// user.phoneNumber = "+254724587654";
+// user.file = "http://something.something";
 
-client.hmset("user", user);
+// client.hmset("user", user);
 
-let user2 = {};
-user2.sessionId = "ABABABABA4082048";
-user2.phoneNumber = "+254724587654";
-user2.file = "http://something.something"
+// let user2 = {};
+// user2.sessionId = "ABABABABA4082048";
+// user2.phoneNumber = "+254724587654";
+// user2.file = "http://something.something"
 
 
 // client.hgetall('user', function(err, object) {
@@ -31,19 +31,13 @@ app.use(bodyParser.urlencoded({extended:true}));
 
 const appPort = 3088;
 
-
-let getUserDetails = (key, value) => {
-    client.hgetall(key, (err, object) => { 
-       return object[`${value}`];
-    });
-};
-
 let setUserDetails = (key, obj) => {
     let _key = key.toString();
-    return client.hmset(_key, obj);
+    let _obj = obj;
+    return client.hmset(_key, _obj);
 };
 
-setUserDetails("user2", user2);
+// setUserDetails("user2", user2);
 
 
 /**
@@ -145,7 +139,7 @@ const recordPhrase = {
 
 const recordPhraseXml = xmlBuilder.create(recordPhrase, {encoding : 'utf-8'}).end({pretty:true});
 
-
+let recordedFileUrl = "";
 /**
  * Play Prevoius Recording Response
  * 
@@ -159,14 +153,14 @@ const recordPhraseXml = xmlBuilder.create(recordPhrase, {encoding : 'utf-8'}).en
  * 
  */
 
-const playPreviousRecording = {
+let playPreviousRecording = {
     Response : {
         Say : {
             '@voice' : 'woman',
             '#text' : 'Playing your last recored file'
         },
         Play : {
-            '@url' : 'https://something.something'
+            '@url' : `${recordedFileUrl}`
         }
     }
 };
@@ -191,7 +185,7 @@ const playPreviousRecordingNotFoundPhrase = {
             '#text' : 'You have no prevous file. Playing random file'
         },
         Play : {
-            '@url' : 'https://something.something'
+            '@url' : 'https://s3.eu-west-2.amazonaws.com/at-voice-sample/play.mp3'
         }
     }
 };
@@ -217,7 +211,7 @@ const playRandomFilePhrase = {
             '#text' : 'Playing your random file of the day'
         },
         Play : {
-            '@url' : 'https://something.something'
+            '@url' : 'https://s3.eu-west-2.amazonaws.com/at-voice-sample/play.mp3'
         }
     }
 };
@@ -258,29 +252,126 @@ let callAction = "";
 app.get('/', (req, res) =>{
 res.send('It lives!');
 });
-
+let level = 0;
 let subscriber = {};
 subscriber.phoneNumber ="";
 subscriber.sessionId = "";
-subscriber.level = 0;
+subscriber.level = level.toString();
 subscriber.voiceNote = "";
 subscriber.lastInput = "";
+subscriber.file = "";
 
 app.post('/voice/service', (req, res) =>{
         callAction = introPromptXmlResponse;
         res.send(callAction);
-        subscriber.phoneNumber = req.body.callerNumber;
-        subscriber.sessionId = req.body.sessionId;
-        subscriber.level = 1;
-        setUserDetails("subscriber", subscriber);
-        console.info(client.hmget("subscriber", "phoneNumber"));
-        // client.hgetall("subscriber", (err, object) => { 
-        //     console.info(object['phoneNumber']);
-        //  });
+        // level = 1;
+        // subscriber.phoneNumber = req.body.callerNumber;
+        // subscriber.sessionId = req.body.sessionId;
+        // subscriber.level = level.toString();
+        // setUserDetails("subscriber", subscriber);
+        //console.info(client.hmget("subscriber", "phoneNumber"));
+         client.hgetall("subscriber", (err, object) => { 
+             console.info(object);
+          });
+});
+
+app.post('/voice/service/file', (req, res) =>{
+    res.status(200).end();
+    subscriber.file = req.body.fileUrl;
+    recordedFileUrl = req.body.fileUrl;
+    setUserDetails("subscriber", subscriber);
 });
 
 app.post('/voice/menu', (req, res) =>{
-    callAction = actionsMenuPhraseXml;
+    let val = req.body.dtmfDigits;
+    switch (val.toString()) {
+        case "1":
+        console.info(val);
+            client.hgetall("subscriber", (err, object) => { 
+                if (object['phoneNumber'] == "") {
+                    // Register this guy
+                    // Serve menu
+                    callAction = actionsMenuPhraseXml;
+                    level = 1;
+                    subscriber.phoneNumber = req.body.callerNumber;
+                    subscriber.sessionId = req.body.sessionId;
+                    subscriber.level = level.toString();
+                    subscriber.lastInput = req.body.dtmfDigits;
+                    setUserDetails("subscriber", subscriber);
+                } else {
+                    if (object['level'] == "1") {
+                        // User wants to record message
+                        callAction = recordPhraseXml;
+                        level = 2;
+                        subscriber.phoneNumber = req.body.callerNumber;
+                        subscriber.sessionId = req.body.sessionId;
+                        subscriber.level = level.toString();
+                        subscriber.lastInput = req.body.dtmfDigits;
+                        setUserDetails("subscriber", subscriber);
+                    }
+                }
+             });
+
+
+            break;
+        case "2" :
+        console.info(val);
+            client.hgetall("subscriber", (err, object) => { 
+                if ( (object['phoneNumber'] != "") && (object['level'] == "1") && (object['file'] != "")) {
+                    // User wants to prevousfile
+                    callAction = playPreviousRecordingXml;
+                    level = 2;
+                    subscriber.phoneNumber = req.body.callerNumber;
+                    subscriber.sessionId = req.body.sessionId;
+                    subscriber.level = level.toString();
+                    subscriber.lastInput = req.body.dtmfDigits;
+                    setUserDetails("subscriber", subscriber);
+                } else if ((object['phoneNumber'] != "") && (object['level'] == "1") && (object['file'] == "")) {
+                    callAction = playPreviousRecordingNotFoundPhraseXml;
+                    level = 2;
+                    subscriber.phoneNumber = req.body.callerNumber;
+                    subscriber.sessionId = req.body.sessionId;
+                    subscriber.level = level.toString();
+                    subscriber.lastInput = req.body.dtmfDigits;
+                    setUserDetails("subscriber", subscriber);
+                }
+        });
+            break;
+
+        case "3":
+        client.hgetall("subscriber", (err, object) => { 
+            if ( (object['phoneNumber'] != "") && (object['level'] == "1")) {
+                // User wants to play random file
+                callAction = playRandomFilePhraseXml;
+                level = 2;
+                subscriber.phoneNumber = req.body.callerNumber;
+                subscriber.sessionId = req.body.sessionId;
+                subscriber.level = level.toString();
+                subscriber.lastInput = req.body.dtmfDigits;
+                setUserDetails("subscriber", subscriber);
+            }
+     });
+            break;
+            
+        case "4":
+            client.hgetall("subscriber", (err, object) => { 
+                if ( (object['phoneNumber'] != "") && (object['level'] == "1")) {
+                    // User wants to play random file
+                    callAction = exitPhraseXml;
+                    level = 2;
+                    subscriber.phoneNumber = req.body.callerNumber;
+                    subscriber.sessionId = req.body.sessionId;
+                    subscriber.level = level.toString();
+                    subscriber.lastInput = req.body.dtmfDigits;
+                    setUserDetails("subscriber", subscriber);
+                }
+        });
+            break;    
+    
+        default:
+            callAction = exitPhraseXml;
+            break;
+    }
     res.send(callAction);
 });
 
