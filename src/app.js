@@ -2,29 +2,11 @@ const express       = require('express');
 const xmlBuilder    = require('xmlbuilder');
 const redis         = require('redis');
 const bodyParser    = require('body-parser');
-const {promisify}   = require('util');
 
 let client    = redis.createClient();
 client.on("error", (err) => {
     console.error("Redis Error: " + err);
 });
-
-// let user = {};
-// user.sessionId = "ABABABABA4082048";
-// user.phoneNumber = "+254724587654";
-// user.file = "http://something.something";
-
-// client.hmset("user", user);
-
-// let user2 = {};
-// user2.sessionId = "ABABABABA4082048";
-// user2.phoneNumber = "+254724587654";
-// user2.file = "http://something.something"
-
-
-// client.hgetall('user', function(err, object) {
-//     console.log(object['file']);
-// });
 
 const app = express();
 app.use(bodyParser.urlencoded({extended:true}));
@@ -36,9 +18,6 @@ let setUserDetails = (key, obj) => {
     let _obj = obj;
     return client.hmset(_key, _obj);
 };
-
-// setUserDetails("user2", user2);
-
 
 /**
  * Intro prompt
@@ -73,7 +52,7 @@ const introPrompt = {
                             '@callbackUrl' : 'https://something.something',
                             Say : {
                                 '@voice' : 'woman',
-                                '#text' : 'Welcome to Voice Memo. Press 1 followed by the pound sign. Press 2 followed by the pound sign to exit.'
+                                '#text' : 'Welcome to Voice Memo. Press 1 followed by the pound sign to register. Press 2 followed by the pound sign to exit.'
                             }
                         },
                         Say : {
@@ -105,22 +84,21 @@ const exitPhrase = {
 
 const exitPhraseXml = xmlBuilder.create(exitPhrase, {encoding : 'utf-8'}).end({pretty:true});
 
+
+const recordFileUrl = "https://something.something/voice/service/file"
 /**
  * Record Phrase
  * 
  * <Response>
  *
- *      <GetDigits numDigits="1" finishOnKey="#" timeout="15" callbackUrl="https://something.something">
+ *      <Record trimSilence="true" playBeep="true" finishOnKey="#" maxLength="15" callbackUrl="https://something.something">
  * 
- *           <Say voice="woman">Welcome to Voice Memo. Press 1 followed by the pound sign. Press 2 followed by the pound sign to exit.</Say>
+ *           <Say voice="man">Press the pound sign to end the recording</Say>
  * 
- *      </GetDigits>
- * 
- *      <Say voice="woman">Sorry we did not get that</Say>
+ *      </Record>
  * 
  * </Response>
  */
-
 const recordPhrase = {
     Response : {
         Record : {
@@ -128,7 +106,7 @@ const recordPhrase = {
             '@maxLength' : '15',
             '@trimSilence' : 'true',
             '@playBeep' : 'true',
-            '@callBackUrl' : 'https://something.something',
+            '@callBackUrl' : `${recordFileUrl}`,
             Say : {
                 '@voice' : 'man',
                 '#text' : 'Press the pound sign to end the recording'
@@ -139,33 +117,6 @@ const recordPhrase = {
 
 const recordPhraseXml = xmlBuilder.create(recordPhrase, {encoding : 'utf-8'}).end({pretty:true});
 
-let recordedFileUrl = "";
-/**
- * Play Prevoius Recording Response
- * 
- * <Response>
- * 
- *      <Say voice="woman">Playing your last recored file</Say>
- * 
- *      <Play url="https://something.something"/>
- * 
- * </Response>
- * 
- */
-
-let playPreviousRecording = {
-    Response : {
-        Say : {
-            '@voice' : 'woman',
-            '#text' : 'Playing your last recored file'
-        },
-        Play : {
-            '@url' : `${recordedFileUrl}`
-        }
-    }
-};
-
-const playPreviousRecordingXml = xmlBuilder.create(playPreviousRecording, {encoding : 'utf-8'}).end({pretty:true});
 
 /**
  * Play Previous Recording
@@ -218,6 +169,7 @@ const playRandomFilePhrase = {
 
 const playRandomFilePhraseXml = xmlBuilder.create(playRandomFilePhrase, {encoding : 'utf-8'}).end({pretty:true});
 
+const dtmfDigitsCallBackUrl = "https://something.something/voice/menu";
 /**
  * Action Menus prompt
  * <Response>
@@ -236,7 +188,7 @@ const actionsMenuPhrase = {
             '@numDigits' : '1',
             '@finishOnKey' : '#',
             '@timeout' : '15',
-            '@callbackUrl' : 'https://something.something',
+            '@callbackUrl' : `${dtmfDigitsCallBackUrl}`,
             Say : {
                 '@voice' : 'woman',
                 '#text' : 'Press 1 followed by the pound sign to record a message.Press 2 followed by the pound sign to listen to your last recording. Press 3 followed by the pound sign to play a random file. Press 4 followed by the pound sign to exit.'
@@ -249,9 +201,12 @@ const actionsMenuPhraseXml = xmlBuilder.create(actionsMenuPhrase, {encoding : 'u
 
 let callAction = "";
 
-app.get('/', (req, res) =>{
+app.get('/', (req, res) => {
+
 res.send('It lives!');
+
 });
+
 let level = 0;
 let subscriber = {};
 subscriber.phoneNumber ="";
@@ -259,39 +214,58 @@ subscriber.sessionId = "";
 subscriber.level = level.toString();
 subscriber.voiceNote = "";
 subscriber.lastInput = "";
-subscriber.file = "";
+subscriber.file = "https://s3.eu-west-2.amazonaws.com/at-voice-sample/play.mp3";
 
-app.post('/voice/service', (req, res) =>{
-        callAction = introPromptXmlResponse;
-        res.send(callAction);
-        // level = 1;
-        // subscriber.phoneNumber = req.body.callerNumber;
-        // subscriber.sessionId = req.body.sessionId;
-        // subscriber.level = level.toString();
-        // setUserDetails("subscriber", subscriber);
-        //console.info(client.hmget("subscriber", "phoneNumber"));
-         client.hgetall("subscriber", (err, object) => { 
-             console.info(object);
-          });
+
+app.post('/voice/service', (req, res) => {
+    const  appUrl = "https://this.app.url";
+     client.hgetall("subscriber", (err, object) => { 
+        if (object['phoneNumber'] != "") {
+            let redirectResponse = {
+                Response : {
+                    Redirect : {
+                        '#text' : `${appUrl}`
+                    }
+                }
+            };
+            subscriber.sessionId = req.body.sessionId;
+            subscriber.level = 0;
+            setUserDetails("subscriber", subscriber);
+            const redirectResponseXml = xmlBuilder.create(redirectResponse, {encoding : 'utf-8'}).end({pretty:true});
+            res.send(redirectResponseXml);
+        } else {
+            subscriber.sessionId = req.body.sessionId;
+            subscriber.level = 0;
+            setUserDetails("subscriber", subscriber);
+            callAction = introPromptXmlResponse;
+            res.send(callAction);
+        }
+      });
+
 });
 
 app.post('/voice/service/file', (req, res) =>{
     res.status(200).end();
-    subscriber.file = req.body.fileUrl;
     recordedFileUrl = req.body.fileUrl;
+    subscriber.voiceNote = recordedFileUrl;
     setUserDetails("subscriber", subscriber);
+
+    // client.hgetall("subscriber", (err, object) => { 
+    //     console.info(object);
+    // });
+
 });
 
 app.post('/voice/menu', (req, res) =>{
     let val = req.body.dtmfDigits;
     switch (val.toString()) {
         case "1":
-        console.info(val);
             client.hgetall("subscriber", (err, object) => { 
+                console.info(object);
                 if (object['phoneNumber'] == "") {
                     // Register this guy
                     // Serve menu
-                    callAction = actionsMenuPhraseXml;
+                    res.send(actionsMenuPhraseXml)  ;
                     level = 1;
                     subscriber.phoneNumber = req.body.callerNumber;
                     subscriber.sessionId = req.body.sessionId;
@@ -301,7 +275,7 @@ app.post('/voice/menu', (req, res) =>{
                 } else {
                     if (object['level'] == "1") {
                         // User wants to record message
-                        callAction = recordPhraseXml;
+                        res.send(recordPhraseXml);
                         level = 2;
                         subscriber.phoneNumber = req.body.callerNumber;
                         subscriber.sessionId = req.body.sessionId;
@@ -315,11 +289,37 @@ app.post('/voice/menu', (req, res) =>{
 
             break;
         case "2" :
-        console.info(val);
             client.hgetall("subscriber", (err, object) => { 
-                if ( (object['phoneNumber'] != "") && (object['level'] == "1") && (object['file'] != "")) {
-                    // User wants to prevousfile
-                    callAction = playPreviousRecordingXml;
+                if ( (object['phoneNumber'] != "") && (object['level'] != "") && (object['voiceNote'] != "")) {
+                    // User wants to prevous file
+                    let recordedFileUrl = [object['voiceNote']];
+                    /**
+                     * Play Prevoius Recording Response
+                     * 
+                     * <Response>
+                     * 
+                     *      <Say voice="woman">Playing your last recored file</Say>
+                     * 
+                     *      <Play url="https://something.something"/>
+                     * 
+                     * </Response>
+                     * 
+                     */
+
+                    let playPreviousRecording = {
+                        Response : {
+                            Say : {
+                                '@voice' : 'woman',
+                                '#text' : 'Playing your last recored file'
+                            },
+                            Play : {
+                                '@url' : `${recordedFileUrl}`
+                            }
+                        }
+                    };
+
+                    const playPreviousRecordingXml = xmlBuilder.create(playPreviousRecording, {encoding : 'utf-8'}).end({pretty:true});
+                    res.send(playPreviousRecordingXml);
                     level = 2;
                     subscriber.phoneNumber = req.body.callerNumber;
                     subscriber.sessionId = req.body.sessionId;
@@ -327,7 +327,7 @@ app.post('/voice/menu', (req, res) =>{
                     subscriber.lastInput = req.body.dtmfDigits;
                     setUserDetails("subscriber", subscriber);
                 } else if ((object['phoneNumber'] != "") && (object['level'] == "1") && (object['file'] == "")) {
-                    callAction = playPreviousRecordingNotFoundPhraseXml;
+                    res.send(playPreviousRecordingNotFoundPhraseXml);
                     level = 2;
                     subscriber.phoneNumber = req.body.callerNumber;
                     subscriber.sessionId = req.body.sessionId;
@@ -340,9 +340,10 @@ app.post('/voice/menu', (req, res) =>{
 
         case "3":
         client.hgetall("subscriber", (err, object) => { 
-            if ( (object['phoneNumber'] != "") && (object['level'] == "1")) {
+            if (object['phoneNumber'] != "" && object['level'] != "") {
                 // User wants to play random file
-                callAction = playRandomFilePhraseXml;
+                console.info(object);
+                res.send(playRandomFilePhraseXml);
                 level = 2;
                 subscriber.phoneNumber = req.body.callerNumber;
                 subscriber.sessionId = req.body.sessionId;
@@ -355,9 +356,9 @@ app.post('/voice/menu', (req, res) =>{
             
         case "4":
             client.hgetall("subscriber", (err, object) => { 
-                if ( (object['phoneNumber'] != "") && (object['level'] == "1")) {
+                if ( (object['phoneNumber'] != "") && (object['level'] != "")) {
                     // User wants to play random file
-                    callAction = exitPhraseXml;
+                    res.send(exitPhraseXml);
                     level = 2;
                     subscriber.phoneNumber = req.body.callerNumber;
                     subscriber.sessionId = req.body.sessionId;
@@ -369,10 +370,9 @@ app.post('/voice/menu', (req, res) =>{
             break;    
     
         default:
-            callAction = exitPhraseXml;
+           res.send(exitPhraseXml);
             break;
     }
-    res.send(callAction);
 });
 
 app.listen(process.env.PORT || appPort, () => {
