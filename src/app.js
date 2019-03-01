@@ -216,11 +216,18 @@ subscriber.voiceNote = "";
 subscriber.lastInput = "";
 subscriber.file = "https://s3.eu-west-2.amazonaws.com/at-voice-sample/play.mp3";
 
+// Have the fields so that redis does not keep throwing erros about null values
+//setUserDetails("subscriber", subscriber);
 
 app.post('/voice/service', (req, res) => {
-    const  appUrl = "https://this.app.url";
+    const  appUrl = "https://this.app.url/voice/menu";
+    let sessionId = req.body.sessionId;
+    let phoneNumber = req.body.callerNumber;
+    level = 1;
+    //setUserDetails("subscriber", subscriber);
      client.hgetall("subscriber", (err, object) => { 
-        if (object['phoneNumber'] != "") {
+         
+        if ((object['phoneNumber'] != "") && object['phoneNumber'] == phoneNumber.toString()) {
             let redirectResponse = {
                 Response : {
                     Redirect : {
@@ -228,55 +235,70 @@ app.post('/voice/service', (req, res) => {
                     }
                 }
             };
-            subscriber.sessionId = req.body.sessionId;
-            subscriber.level = 0;
-            setUserDetails("subscriber", subscriber);
+            // subscriber.sessionId = req.body.sessionId.toString();
+            // subscriber.level = 0;
+            // setUserDetails("subscriber", subscriber);
             const redirectResponseXml = xmlBuilder.create(redirectResponse, {encoding : 'utf-8'}).end({pretty:true});
             res.send(redirectResponseXml);
         } else {
-            subscriber.sessionId = req.body.sessionId;
-            subscriber.level = 0;
-            setUserDetails("subscriber", subscriber);
+            // subscriber.sessionId = req.body.sessionId.toString();
+            // subscriber.level = 0;
+            // setUserDetails("subscriber", subscriber);
             callAction = introPromptXmlResponse;
             res.send(callAction);
         }
+        subscriber.sessionId = sessionId.toString();
+        subscriber.phoneNumber = phoneNumber.toString();
+        subscriber.level = level.toString();
+        console.info(subscriber);
+        setUserDetails("subscriber", subscriber);
+        //console.info(object);
       });
+
+        client.hgetall("subscriber", (err, object) => { 
+        console.info(object);
+    });
 
 });
 
 app.post('/voice/service/file', (req, res) =>{
     res.status(200).end();
     recordedFileUrl = req.body.fileUrl;
+    let sessionId = req.body.sessionId;
+    let phoneNumber = req.body.callerNumber;
+    subscriber.phoneNumber = phoneNumber.toString();
+    subscriber.sessionId = sessionId.toString();
     subscriber.voiceNote = recordedFileUrl;
     setUserDetails("subscriber", subscriber);
 
-    // client.hgetall("subscriber", (err, object) => { 
-    //     console.info(object);
-    // });
+    client.hgetall("subscriber", (err, object) => { 
+        console.info(object);
+    });
 
 });
 
 app.post('/voice/menu', (req, res) =>{
     let val = req.body.dtmfDigits;
+    let phoneNumber = req.body.callerNumber.toString();
     switch (val.toString()) {
         case "1":
             client.hgetall("subscriber", (err, object) => { 
                 console.info(object);
-                if (object['phoneNumber'] == "") {
+                if (object['phoneNumber'] == phoneNumber && object['level'] == '1') {
                     // Register this guy
                     // Serve menu
                     res.send(actionsMenuPhraseXml)  ;
-                    level = 1;
+                    level = 2;
                     subscriber.phoneNumber = req.body.callerNumber;
                     subscriber.sessionId = req.body.sessionId;
                     subscriber.level = level.toString();
                     subscriber.lastInput = req.body.dtmfDigits;
                     setUserDetails("subscriber", subscriber);
                 } else {
-                    if (object['level'] == "1") {
+                    if (object['level'] == "2") {
                         // User wants to record message
                         res.send(recordPhraseXml);
-                        level = 2;
+                        level = 3;
                         subscriber.phoneNumber = req.body.callerNumber;
                         subscriber.sessionId = req.body.sessionId;
                         subscriber.level = level.toString();
@@ -285,12 +307,10 @@ app.post('/voice/menu', (req, res) =>{
                     }
                 }
              });
-
-
             break;
         case "2" :
             client.hgetall("subscriber", (err, object) => { 
-                if ( (object['phoneNumber'] != "") && (object['level'] != "") && (object['voiceNote'] != "")) {
+                if ( (object['phoneNumber'] == phoneNumber)  && (object['voiceNote'] != "")) {
                     // User wants to prevous file
                     let recordedFileUrl = [object['voiceNote']];
                     /**
@@ -326,7 +346,7 @@ app.post('/voice/menu', (req, res) =>{
                     subscriber.level = level.toString();
                     subscriber.lastInput = req.body.dtmfDigits;
                     setUserDetails("subscriber", subscriber);
-                } else if ((object['phoneNumber'] != "") && (object['level'] == "1") && (object['file'] == "")) {
+                } else if ((object['phoneNumber'] == phoneNumber ) && (object['file'] == "")) {
                     res.send(playPreviousRecordingNotFoundPhraseXml);
                     level = 2;
                     subscriber.phoneNumber = req.body.callerNumber;
@@ -340,7 +360,7 @@ app.post('/voice/menu', (req, res) =>{
 
         case "3":
         client.hgetall("subscriber", (err, object) => { 
-            if (object['phoneNumber'] != "" && object['level'] != "") {
+            if (object['phoneNumber'] == phoneNumber) {
                 // User wants to play random file
                 console.info(object);
                 res.send(playRandomFilePhraseXml);
@@ -356,7 +376,7 @@ app.post('/voice/menu', (req, res) =>{
             
         case "4":
             client.hgetall("subscriber", (err, object) => { 
-                if ( (object['phoneNumber'] != "") && (object['level'] != "")) {
+                if ( (object['phoneNumber'] == req.body.callerNumber ) && (object['level'] != "0")) {
                     // User wants to play random file
                     res.send(exitPhraseXml);
                     level = 2;
