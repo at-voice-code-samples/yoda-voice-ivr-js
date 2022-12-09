@@ -29,7 +29,7 @@
   "homepage": "https://github.com/at-voice-code-samples/yoda-voice-ivr-js#readme",
   "dependencies": {
     "body-parser": "^1.18.3",
-    "express": "^4.16.4",
+    "express": "^4.17.3",
     "redis": "^2.8.0",
     "xmlbuilder": "^11.0.0"
   },
